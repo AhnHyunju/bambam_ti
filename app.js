@@ -240,15 +240,15 @@ function openCounselingPanel(studentId) {
   
   const studentIndex = STUDENTS.findIndex(s => s.id === studentId);
   const aliasLetter = String.fromCharCode(65 + studentIndex); 
-  const studentAlias = \`학생 \${aliasLetter}\`;
+  const studentAlias = `학생 ${aliasLetter}`;
   
   const gradeSummary = Object.entries(student.grades)
-    .map(([k, v]) => \`\${k}: \${v}\`).join(", ");
+    .map(([k, v]) => `${k}: ${v}`).join(", ");
   const learningTraits = student.traits.join(" ") + " " + student.teacherMemo;
 
-  panelContent.innerHTML = \`
+  panelContent.innerHTML = `
     <div style="margin-bottom: 16px; padding: 12px; background: #f8f9fa; border-radius: 6px;">
-      <strong>선택된 학생 (화면 표시용):</strong> \${student.name} (학번: \${student.id})
+      <strong>선택된 학생 (화면 표시용):</strong> ${student.name} (학번: ${student.id})
     </div>
     <div style="margin-bottom: 16px;">
       <label for="teacherConcern" style="display: block; font-weight: bold; margin-bottom: 8px;">상담 고민 입력:</label>
@@ -263,7 +263,7 @@ function openCounselingPanel(studentId) {
     <p style="margin-top: 20px; font-size: 12px; color: #666; font-style: italic;">
       AI 상담 전략은 참고용입니다. 최종 판단과 실제 상담은 교사가 학생의 상황을 종합적으로 고려하여 진행해야 합니다.
     </p>
-  \`;
+  `;
 
   const concernInput = document.getElementById('teacherConcern');
   const previewData = document.getElementById('previewData');
@@ -307,9 +307,9 @@ function openCounselingPanel(studentId) {
 
       const data = await res.json();
       if (res.ok && data.success) {
-        responseArea.innerHTML = \`<div style="padding: 16px; border-left: 4px solid #0066cc; background: #f0f8ff;">\${escapeHtml(data.result)}</div>\`;
+        responseArea.innerHTML = `<div style="padding: 16px; border-left: 4px solid #0066cc; background: #f0f8ff;">${escapeHtml(data.result)}</div>`;
       } else {
-        responseArea.innerHTML = \`<span style="color: red; font-weight: bold;">\${escapeHtml(data.error || 'AI 상담 전략을 불러오지 못했습니다. API 키 또는 Vercel 환경 변수를 확인해주세요.')}</span>\`;
+        responseArea.innerHTML = `<span style="color: red; font-weight: bold;">${escapeHtml(data.error || 'AI 상담 전략을 불러오지 못했습니다. API 키 또는 Vercel 환경 변수를 확인해주세요.')}</span>`;
       }
     } catch (error) {
       console.error(error);
