@@ -161,6 +161,16 @@ function renderAdminDashboard() {
     <section class="admin-grid" aria-label="전체 학생 정보">
       ${STUDENTS.map(renderStudentCard).join("")}
     </section>
+
+    <!-- AI 상담 전략 도우미 섹션 -->
+    <section class="ai-counseling-panel" style="margin-top: 40px; padding: 20px; border: 2px solid #0066cc; border-radius: 8px; background: #fff;">
+      <div class="section-title">
+        <h3 style="background: none; color: #0066cc; transform: none; padding: 0;">AI 학생 상담 전략 도우미</h3>
+      </div>
+      <div id="aiCounselingContent">
+        <p style="color: #666;">상담 전략을 받아볼 학생의 카드에서 "상담 전략 요청" 버튼을 클릭하세요.</p>
+      </div>
+    </section>
   `;
 
   showOnly(adminView);
@@ -176,6 +186,7 @@ function renderStudentCard(student) {
         <p class="student-number">학번 ${student.id}</p>
         ${renderGrades(student.grades, true, `gradesTitle-${student.id}`)}
         ${renderTraits(student)}
+        <button class="primary-button" style="margin-top: 16px; width: 100%;" onclick="openCounselingPanel('${student.id}')">상담 전략 요청</button>
       </div>
     </article>
   `;
@@ -210,6 +221,113 @@ function renderTraits(student) {
       </ul>
     </section>
   `;
+}
+
+/* 
+보안 점검용 주석:
+1. 프론트엔드에 API 키를 넣으면 개발자 도구에서 노출될 수 있습니다.
+2. Gemini API 호출은 Vercel Serverless Function(/api/gemini-counseling)에서 처리합니다.
+3. .env 파일은 GitHub에 올리지 않습니다.
+4. Vercel 배포 시에는 Project Settings의 Environment Variables에 GEMINI_API_KEY를 등록해야 합니다.
+5. Gemini로 전송하는 데이터는 이름, 학번, 사진 경로를 제외한 최소 정보(익명화된 정보)로 제한합니다.
+*/
+
+function openCounselingPanel(studentId) {
+  const student = STUDENTS.find(s => s.id === studentId);
+  if (!student) return;
+
+  const panelContent = document.getElementById('aiCounselingContent');
+  
+  const studentIndex = STUDENTS.findIndex(s => s.id === studentId);
+  const aliasLetter = String.fromCharCode(65 + studentIndex); 
+  const studentAlias = \`학생 \${aliasLetter}\`;
+  
+  const gradeSummary = Object.entries(student.grades)
+    .map(([k, v]) => \`\${k}: \${v}\`).join(", ");
+  const learningTraits = student.traits.join(" ") + " " + student.teacherMemo;
+
+  panelContent.innerHTML = \`
+    <div style="margin-bottom: 16px; padding: 12px; background: #f8f9fa; border-radius: 6px;">
+      <strong>선택된 학생 (화면 표시용):</strong> \${student.name} (학번: \${student.id})
+    </div>
+    <div style="margin-bottom: 16px;">
+      <label for="teacherConcern" style="display: block; font-weight: bold; margin-bottom: 8px;">상담 고민 입력:</label>
+      <textarea id="teacherConcern" style="width: 100%; height: 80px; padding: 10px; border: 1px solid #ccc; border-radius: 4px;" placeholder="수업 참여는 좋은데 평가 결과가 낮습니다. 어떻게 상담하면 좋을까요?"></textarea>
+    </div>
+    <div style="margin-bottom: 16px;">
+      <strong>전송 데이터 미리보기 (익명화됨):</strong>
+      <pre id="previewData" style="background: #eee; padding: 10px; border-radius: 4px; overflow-x: auto; font-size: 13px;"></pre>
+    </div>
+    <button class="primary-button" id="btnGetStrategy">AI 상담 전략 받기</button>
+    <div id="aiResponseArea" style="margin-top: 20px; white-space: pre-wrap; line-height: 1.6;"></div>
+    <p style="margin-top: 20px; font-size: 12px; color: #666; font-style: italic;">
+      AI 상담 전략은 참고용입니다. 최종 판단과 실제 상담은 교사가 학생의 상황을 종합적으로 고려하여 진행해야 합니다.
+    </p>
+  \`;
+
+  const concernInput = document.getElementById('teacherConcern');
+  const previewData = document.getElementById('previewData');
+  const btnGetStrategy = document.getElementById('btnGetStrategy');
+  const responseArea = document.getElementById('aiResponseArea');
+
+  const updatePreview = () => {
+    const payload = {
+      studentAlias: studentAlias,
+      gradeSummary: gradeSummary,
+      learningTraits: learningTraits,
+      teacherConcern: concernInput.value
+    };
+    previewData.textContent = JSON.stringify(payload, null, 2);
+  };
+
+  concernInput.addEventListener('input', updatePreview);
+  updatePreview();
+
+  btnGetStrategy.addEventListener('click', async () => {
+    const concern = concernInput.value.trim();
+    if (!concern) {
+      responseArea.innerHTML = '<span style="color: red; font-weight: bold;">상담 고민을 먼저 입력해주세요.</span>';
+      return;
+    }
+
+    responseArea.innerHTML = '<span style="color: #0066cc; font-weight: bold;">AI가 상담 전략을 생성하는 중입니다...</span>';
+    btnGetStrategy.disabled = true;
+
+    try {
+      const res = await fetch('/api/gemini-counseling', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          studentAlias,
+          gradeSummary,
+          learningTraits,
+          teacherConcern: concern
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        responseArea.innerHTML = \`<div style="padding: 16px; border-left: 4px solid #0066cc; background: #f0f8ff;">\${escapeHtml(data.result)}</div>\`;
+      } else {
+        responseArea.innerHTML = \`<span style="color: red; font-weight: bold;">\${escapeHtml(data.error || 'AI 상담 전략을 불러오지 못했습니다. API 키 또는 Vercel 환경 변수를 확인해주세요.')}</span>\`;
+      }
+    } catch (error) {
+      console.error(error);
+      responseArea.innerHTML = '<span style="color: red; font-weight: bold;">AI 상담 전략을 불러오지 못했습니다. API 키 또는 Vercel 환경 변수를 확인해주세요.</span>';
+    } finally {
+      btnGetStrategy.disabled = false;
+    }
+  });
+}
+
+function escapeHtml(unsafe) {
+    return unsafe
+         .replace(/&/g, "&amp;")
+         .replace(/</g, "&lt;")
+         .replace(/>/g, "&gt;")
+         .replace(/"/g, "&quot;")
+         .replace(/'/g, "&#039;")
+         .replace(/\\n/g, "<br>");
 }
 
 showOnly(loginView);
